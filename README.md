@@ -6,6 +6,10 @@ The bar icon shows the current track (and a playing/paused state). Hover it to
 open a popup with album art, a draggable progress bar, playback controls, and a
 live audio visualizer.
 
+> **Status: In development.** This project is a work in progress. Features may
+> change or break between updates, and not everything is polished yet. Feedback,
+> bug reports, and feature ideas are very welcome.
+
 ## Overview
 
 ![](image_1.png)
@@ -67,9 +71,30 @@ live audio visualizer.
   since it can't be controlled.
 - With multiple players open, click a source in the list to switch to it.
 
+## Future plans
+
+- **Lyrics support** — show synced/unsynced lyrics for the current track in the
+  popup.
+- **More cava designs** — alternative visualizer styles/themes for the cava
+  output, switchable from the popup.
+- More polish on the progress bar and playback control fallbacks.
+
+## Contributing
+
+Contributions are welcome! Ideas, bug reports, and pull requests are all
+appreciated, especially around the future plans above. Please keep changes in
+line with the existing code style and note that contributed code falls under
+the same license as the rest of the project.
+
 ## Notes
 
 - `cliamp` repeat/shuffle are driven through the `cliamp` CLI. Other players
   use the standard MPRIS interface.
 - Changes to files in `~/.config/omarchy/plugins/` hot-reload; a full
   `omarchy restart shell` is recommended after editing `Widget.qml`.
+
+## License
+
+See [LICENSE](LICENSE). In short: you may use and modify this plugin for free,
+but you may not make changed versions public and may not use it for commercial
+purposes.
