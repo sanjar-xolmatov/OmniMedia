@@ -6,6 +6,10 @@ The bar icon shows the current track (and a playing/paused state). Hover it to
 open a popup with album art, a draggable progress bar, playback controls, and a
 live audio visualizer.
 
+## Overview
+
+![](image_1.png)
+
 ## Features
 
 - Now-playing info on the bar: song name + play/pause state
