@@ -1,16 +1,16 @@
 {
   "schemaVersion": 1,
-  "id": "sanjar.now-playing",
-  "name": "Now Playing",
-  "version": "0.1.1",
-  "author": "Sanjarbek",
+  "id": "sanjar.omnimedia",
+  "name": "OmniMedia",
+  "version": "0.7.0",
+  "author": "Sanjar Xolmatov",
   "description": "Bar icon that opens a media popup with cava",
   "kinds": ["bar-widget"],
   "entryPoints": {
     "barWidget": "Widget.qml"
   },
   "barWidget": {
-    "displayName": "Now Playing",
+    "displayName": "OmniMedia",
     "category": "Media",
     "defaultSection": "right",
     "allowMultiple": false

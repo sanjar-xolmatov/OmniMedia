@@ -24,7 +24,8 @@ Item {
         stdout: SplitParser {
             onRead: line => {
                 const vals = line.split(";").filter(v => v.length).map(Number);
-                if (vals.length) viz.levels = vals;
+                if (vals.length < viz.barCount) return
+                viz.levels = vals.slice(0, viz.barCount);
             }
         }
     }

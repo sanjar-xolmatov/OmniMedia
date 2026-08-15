@@ -6,7 +6,7 @@ Start here: load the `omarchy` skill (plugins.md) and read `/usr/share/omarchy/s
 
 ## Plugin id
 
-- The shell keys the plugin by the **manifest `id`**, not the directory name. Directory is `sanjar.now-playing/` and the manifest id must stay `sanjar.now-playing` (was the template `yourname.now-playing` — fixed). Keep dir name == manifest id.
+- The shell keys the plugin by the **manifest `id`**, not the directory name. Directory is `omnimedia/` and the manifest id is `omnimedia` (renamed from `sanjar.now-playing` — formerly the template `yourname.now-playing`). Keep dir name == manifest id.
 - The id appears in `manifest.json` `id` and in `Widget.qml` `moduleName`. If you ever rename it, update BOTH (there is no hardcoded `toggle <id>` IPC anymore — the widget opens its own popup).
 - Enabling/placement is persisted in `~/.config/omarchy/shell.json` `bar.layout.<section>`; the widget currently sits in `right`. Manage it with `omarchy bar put/move <id>`. Check with `omarchy plugin list`, validate the manifest with `omarchy plugin validate <dir>`.
 
