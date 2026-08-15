@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "id": "sanjar.now-playing",
+  "name": "Now Playing",
+  "version": "0.1.1",
+  "author": "Sanjarbek",
+  "description": "Bar icon that opens a media popup with cava",
+  "kinds": ["bar-widget"],
+  "entryPoints": {
+    "barWidget": "Widget.qml"
+  },
+  "barWidget": {
+    "displayName": "Now Playing",
+    "category": "Media",
+    "defaultSection": "right",
+    "allowMultiple": false
+  }
+}
