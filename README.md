@@ -60,6 +60,26 @@ live audio visualizer.
    omarchy restart shell
    ```
 
+## Uninstall
+
+1. Remove the widget from the bar and disable the plugin:
+
+   ```sh
+   omarchy plugin disable sanjar.omnimedia
+   ```
+
+2. Delete the plugin folder:
+
+   ```sh
+   rm -rf ~/.config/omarchy/plugins/omnimedia
+   ```
+
+3. Restart the shell to drop everything:
+
+   ```sh
+   omarchy restart shell
+   ```
+
 ## Use
 
 - Hover the music icon on the bar to open the popup.
