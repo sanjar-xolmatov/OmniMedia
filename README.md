@@ -12,7 +12,7 @@ live audio visualizer.
 
 ## Overview
 
-![](image_1.png)
+![](preview.png)
 
 ## Features
 
@@ -28,10 +28,6 @@ live audio visualizer.
 
 - Omarchy (the shell plugin API)
 - `cava` — needed for the visualizer. Install it if you want the visualizer:
-
-  ```sh
-  omarchy pkg add cava
-  ```
 
 ## Install
 
