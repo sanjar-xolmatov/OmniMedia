@@ -201,7 +201,6 @@ BarWidget {
         root.pendingUrl = ""
         root.downloadState = 1
         root.clipboardTimeout.start()
-        root.clipboardProc.command = ["wl-paste"]
         root.clipboardProc.running = true
     }
 
@@ -275,7 +274,7 @@ BarWidget {
 
     Timer {
         id: clipboardTimeout
-        interval: 3000
+        interval: 5000
         onTriggered: {
             if (root.downloadState === 1) {
                 if (root.clipboardProc.running) root.clipboardProc.kill()
@@ -288,6 +287,7 @@ BarWidget {
     Process {
         id: clipboardProc
         running: false
+        command: ["bash", "-c", "wl-paste 2>/dev/null || true"]
         stdout: SplitParser {
             onRead: line => {
                 if (root.downloadState !== 1) return
