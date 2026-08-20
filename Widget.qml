@@ -191,6 +191,8 @@ BarWidget {
     property int downloadState: 0 // 0=idle, 1=downloading, 2=success, 3=failed, 4=no-ytdlp, 5=no-ffmpeg, 6=non-youtube
     property real downloadProgress: 0
     property string downloadError: ""
+    property bool downloadCancelled: false
+    property string depCheckTarget: ""
     readonly property string musicDir: Quickshell.env("HOME") + "/Music"
 
     function downloadTrack() {
@@ -198,48 +200,20 @@ BarWidget {
         var url = String(root.player.trackUrl || "")
         if (url === "") { root.downloadState = 6; return }
 
-        // Check yt-dlp dependency
+        root.downloadCancelled = false
+        root.downloadState = 1
+        root.downloadProgress = 0
+        root.downloadError = ""
+        root.depCheckTarget = "yt-dlp"
         root.depCheckProc.command = ["which", "yt-dlp"]
-        root.depCheckProc.onExited = function(exitCode) {
-            if (exitCode !== 0) {
-                root.downloadState = 4
-                root.downloadError = "Install yt-dlp to download tracks"
-                return
-            }
-            // Check ffmpeg dependency
-            root.depCheckProc.command = ["which", "ffmpeg"]
-            root.depCheckProc.onExited = function(exitCode) {
-                if (exitCode !== 0) {
-                    root.downloadState = 5
-                    root.downloadError = "Install ffmpeg for audio conversion"
-                    return
-                }
-                // All dependencies OK — start download
-                root.downloadState = 1
-                root.downloadProgress = 0
-                root.downloadError = ""
-                root.downloadProc.command = [
-                    "yt-dlp",
-                    "--embed-metadata",
-                    "--embed-thumbnail",
-                    "--extract-audio",
-                    "--audio-format", "mp3",
-                    "--audio-quality", "0",
-                    "--no-overwrites",
-                    "--no-playlist",
-                    "-o", root.musicDir + "/%(artist)s - %(title)s.%(ext)s",
-                    url
-                ]
-                root.downloadProc.running = true
-            }
-            root.depCheckProc.running = true
-        }
         root.depCheckProc.running = true
     }
 
     function cancelDownload() {
         if (root.downloadState !== 1) return
-        root.downloadProc.kill()
+        root.downloadCancelled = true
+        if (root.depCheckProc.running) root.depCheckProc.kill()
+        if (root.downloadProc.running) root.downloadProc.kill()
         root.downloadState = 0
         root.downloadProgress = 0
         root.downloadError = ""
@@ -293,13 +267,45 @@ BarWidget {
     Process {
         id: depCheckProc
         running: false
+        onExited: function(exitCode) {
+            if (root.downloadCancelled) return
+            if (root.depCheckTarget === "yt-dlp") {
+                if (exitCode !== 0) {
+                    root.downloadState = 4
+                    root.downloadError = "Install yt-dlp to download tracks"
+                    return
+                }
+                root.depCheckTarget = "ffmpeg"
+                root.depCheckProc.command = ["which", "ffmpeg"]
+                root.depCheckProc.running = true
+            } else if (root.depCheckTarget === "ffmpeg") {
+                if (exitCode !== 0) {
+                    root.downloadState = 5
+                    root.downloadError = "Install ffmpeg for audio conversion"
+                    return
+                }
+                root.downloadProc.command = [
+                    "yt-dlp",
+                    "--embed-metadata",
+                    "--embed-thumbnail",
+                    "--extract-audio",
+                    "--audio-format", "mp3",
+                    "--audio-quality", "0",
+                    "--no-overwrites",
+                    "--no-playlist",
+                    "-o", root.musicDir + "/%(artist)s - %(title)s.%(ext)s",
+                    String(root.player.trackUrl || "")
+                ]
+                root.downloadProc.running = true
+            }
+        }
     }
 
     Process {
         id: downloadProc
         running: false
         onRunningChanged: {
-            if (!running && root.downloadState === 1) {
+            if (!running && root.downloadState === 1 && !root.downloadCancelled) {
                 if (exitCode === 0) {
                     root.downloadState = 2
                     root.downloadProgress = 100
@@ -311,7 +317,7 @@ BarWidget {
             }
         }
         onExited: function(exitCode) {
-            if (exitCode !== 0 && root.downloadState === 1 && exitCode !== -1) {
+            if (exitCode !== 0 && root.downloadState === 1 && !root.downloadCancelled && exitCode !== -1) {
                 root.downloadState = 3
                 root.downloadError = root.downloadError || "Download failed (exit " + exitCode + ")"
             }
