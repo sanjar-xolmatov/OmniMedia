@@ -182,12 +182,13 @@ BarWidget {
     property int wallpaperVersion: 0
     readonly property string wallpaperUrl: Util.fileUrl(root.wallpaperPath) + "?v=" + root.wallpaperVersion
 
-    property int downloadState: 0 // 0=idle, 1=clipboard, 2=downloading, 3=success, 4=failed, 5=no-ytdlp, 6=no-ffmpeg, 7=not-youtube, 8=clipboard-empty, 9=clipboard-error
+    property int downloadState: 0 // 0=idle, 1=input, 2=downloading, 3=success, 4=failed, 5=no-ytdlp, 6=no-ffmpeg, 7=not-youtube
     property real downloadProgress: 0
     property string downloadError: ""
     property bool downloadCancelled: false
     property string depCheckTarget: ""
     property string pendingUrl: ""
+    property string inputUrl: ""
     readonly property string musicDir: Quickshell.env("HOME") + "/Music"
 
     function isYouTubeUrl(url) {
@@ -195,13 +196,18 @@ BarWidget {
     }
 
     function downloadTrack() {
+        if (root.downloadState === 1) {
+            root.downloadState = 0
+            root.inputUrl = ""
+            root.downloadError = ""
+            return
+        }
         root.downloadCancelled = false
         root.downloadError = ""
         root.downloadProgress = 0
         root.pendingUrl = ""
+        root.inputUrl = ""
         root.downloadState = 1
-        root.clipboardTimeout.start()
-        root.clipboardProc.running = true
     }
 
     function startActualDownload() {
@@ -215,27 +221,36 @@ BarWidget {
 
     function cancelDownload() {
         root.downloadCancelled = true
-        root.clipboardTimeout.stop()
-        if (root.clipboardProc.running) root.clipboardProc.kill()
         if (root.depCheckProc.running) root.depCheckProc.kill()
         if (root.downloadProc.running) root.downloadProc.kill()
         root.downloadState = 0
         root.downloadProgress = 0
         root.downloadError = ""
+        root.inputUrl = ""
+    }
+
+    function submitUrl() {
+        var url = root.inputUrl.trim()
+        if (url === "") return
+        if (!root.isYouTubeUrl(url)) {
+            root.downloadState = 7
+            root.downloadError = "Not a YouTube link"
+            return
+        }
+        root.pendingUrl = url
+        root.startActualDownload()
     }
 
     function downloadButtonLabel() {
         switch (root.downloadState) {
         case 0: return "Download YouTube"
-        case 1: return "Reading clipboard\u2026"
+        case 1: return "Enter URL"
         case 2: return "Downloading\u2026 " + Math.round(root.downloadProgress) + "%"
         case 3: return "Downloaded"
         case 4: return "Failed \u2014 retry?"
         case 5: return "yt-dlp not found"
         case 6: return "ffmpeg not found"
         case 7: return "Not a YouTube link"
-        case 8: return "Copy a YouTube link first"
-        case 9: return "Could not read clipboard"
         default: return "Download YouTube"
         }
     }
@@ -268,52 +283,6 @@ BarWidget {
                 var s = String(line)
                 if (s.indexOf("Shuffle:") === 0) root.cliampShuffle = s.substr(8).trim() === "on"
                 else if (s.indexOf("Repeat:") === 0) root.cliampRepeatMode = s.substr(7).trim().toLowerCase()
-            }
-        }
-    }
-
-    Timer {
-        id: clipboardTimeout
-        interval: 5000
-        onTriggered: {
-            if (root.downloadState === 1) {
-                if (root.clipboardProc.running) root.clipboardProc.kill()
-                root.downloadState = 9
-                root.downloadError = "Clipboard read timed out"
-            }
-        }
-    }
-
-    Process {
-        id: clipboardProc
-        running: false
-        command: ["bash", "-c", "wl-paste 2>/dev/null || true"]
-        stdout: SplitParser {
-            onRead: line => {
-                if (root.downloadState !== 1) return
-                clipboardTimeout.stop()
-                var url = String(line).trim()
-                if (url === "") {
-                    root.downloadState = 8
-                    root.downloadError = "Clipboard is empty \u2014 copy a YouTube link first"
-                    return
-                }
-                if (!root.isYouTubeUrl(url)) {
-                    root.downloadState = 7
-                    root.downloadError = "Not a YouTube link \u2014 copy a YouTube URL first"
-                    return
-                }
-                root.pendingUrl = url
-                root.startActualDownload()
-            }
-        }
-        onExited: function(exitCode) {
-            if (root.downloadState === 1 && !root.downloadCancelled) {
-                clipboardTimeout.stop()
-                if (root.pendingUrl === "") {
-                    root.downloadState = 9
-                    root.downloadError = "Could not read clipboard"
-                }
             }
         }
     }
@@ -755,25 +724,83 @@ BarWidget {
                     : root.downloadState === 3 ? "\uf00c"
                     : root.downloadState === 4 ? "\uf00d"
                     : root.downloadState === 5 || root.downloadState === 6 ? "\uf06a"
-                    : root.downloadState === 7 || root.downloadState === 8 || root.downloadState === 9 ? "\uf071"
-                    : root.downloadState === 1 ? "\uf110"
+                    : root.downloadState === 7 ? "\uf071"
+                    : root.downloadState === 1 ? "\uf00d"
                     : "\uf019"
-                iconSpinning: root.downloadState === 1 || root.downloadState === 2
+                iconSpinning: root.downloadState === 2
                 text: root.downloadButtonLabel()
                 foreground: root.fg
                 fontSize: Style.font.bodySmall
                 tooltipText: root.downloadState === 2 ? "Click to cancel"
                     : root.downloadState === 4 ? "Click to retry"
-                    : root.downloadState === 0 ? "Copy a YouTube link, then click here"
                     : ""
                 onClicked: {
-                    if (root.downloadState === 0 || root.downloadState === 7
-                        || root.downloadState === 8 || root.downloadState === 9
-                        || root.downloadState === 5) root.downloadTrack()
+                    if (root.downloadState === 0 || root.downloadState === 5
+                        || root.downloadState === 3 || root.downloadState === 4
+                        || root.downloadState === 7 || root.downloadState === 6)
+                        root.downloadTrack()
                     else if (root.downloadState === 2) root.cancelDownload()
-                    else if (root.downloadState === 4 || root.downloadState === 6
-                             || root.downloadState === 3) root.downloadTrack()
+                    else if (root.downloadState === 1) root.downloadTrack()
                 }
+            }
+
+            Rectangle {
+                width: parent.width
+                height: root.downloadState === 1 ? urlInput.implicitHeight + Style.space(16) : 0
+                color: Color?.alpha(root.fg, 0.06) ?? Qt.rgba(root.fg.r, root.fg.g, root.fg.b, 0.06)
+                radius: Style.radius(6)
+                clip: true
+                visible: root.downloadState === 1
+                Behavior on height { NumberAnimation { duration: 150 } }
+
+                TextInput {
+                    id: urlInput
+                    anchors.fill: parent
+                    anchors.margins: Style.space(8)
+                    color: root.fg
+                    font.family: root.fontFam
+                    font.pixelSize: Style.font.bodySmall
+                    verticalAlignment: TextInput.AlignVCenter
+                    clip: true
+                    selectByMouse: true
+                    selectionColor: Color.accent
+                    echoMode: TextInput.Normal
+                    visible: root.downloadState === 1
+                    Text {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: "Paste YouTube URL..."
+                        color: Qt.darker(root.fg, 1.5)
+                        font.family: root.fontFam
+                        font.pixelSize: Style.font.bodySmall
+                        visible: !urlInput.text && !urlInput.activeFocus
+                    }
+                    onAccepted: root.submitUrl()
+                    Keys.onEscapePressed: {
+                        root.downloadState = 0
+                        root.inputUrl = ""
+                        root.downloadError = ""
+                    }
+                    Connections {
+                        target: root
+                        function onDownloadStateChanged() {
+                            if (root.downloadState === 1) {
+                                urlInput.text = ""
+                                urlInput.forceActiveFocus()
+                            }
+                        }
+                    }
+                    Binding on text { value: root.inputUrl; when: false }
+                    onTextChanged: root.inputUrl = text
+                }
+            }
+
+            Button {
+                width: parent.width
+                text: "Go"
+                foreground: root.fg
+                fontSize: Style.font.bodySmall
+                visible: root.downloadState === 1
+                onClicked: root.submitUrl()
             }
 
             PanelSeparator {
