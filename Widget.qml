@@ -218,7 +218,7 @@ BarWidget {
         root.pendingThumbnail = ""
         root.pendingDuration = 0
         root.downloadState = 1
-        root.clipboardProc.command = ["wl-paste", "--no-newline"]
+        root.clipboardProc.command = ["wl-paste"]
         root.clipboardProc.running = true
     }
 
