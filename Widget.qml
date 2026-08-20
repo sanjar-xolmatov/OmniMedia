@@ -1,6 +1,7 @@
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import Quickshell.Hyprland
 import Quickshell.Services.Mpris
 import qs.Ui
 import qs.Commons
@@ -259,6 +260,19 @@ BarWidget {
         id: closeDelay
         interval: 220
         onTriggered: root.popupOpen = false
+    }
+
+    HyprlandFocusGrab {
+        id: inputGrab
+        active: root.downloadState === 1
+        windows: root.QsWindow ? [root.QsWindow.window] : []
+        onCleared: {
+            if (root.downloadState === 1) {
+                root.downloadState = 0
+                root.inputUrl = ""
+                root.downloadError = ""
+            }
+        }
     }
 
     Timer {
@@ -766,6 +780,8 @@ BarWidget {
                     selectionColor: Color.accent
                     echoMode: TextInput.Normal
                     visible: root.downloadState === 1
+                    focus: root.downloadState === 1
+                    activeFocusOnTab: false
                     Text {
                         anchors.verticalCenter: parent.verticalCenter
                         text: "Paste YouTube URL..."
