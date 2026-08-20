@@ -4,7 +4,7 @@ import qs.Commons
 
 Item {
     id: viz
-    property int barCount: 20
+    property int barCount: 30
     property color barColor: Color.accent
     property bool running: true
     property var levels: Array(barCount).fill(0)
@@ -23,8 +23,11 @@ Item {
         command: ["cava", "-p", viz.cavaConfigFile]
         stdout: SplitParser {
             onRead: line => {
-                const vals = line.split(";").filter(v => v.length).map(Number);
-                if (vals.length < viz.barCount) return
+                const vals = line.split(";").map(v => {
+                    var n = Number(v);
+                    return isNaN(n) ? 0 : n;
+                });
+                while (vals.length < viz.barCount) vals.push(0);
                 viz.levels = vals.slice(0, viz.barCount);
             }
         }

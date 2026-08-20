@@ -1,7 +1,8 @@
 [general]
-bars = 20
+bars = 30
 autosens = 0
 sensitivity = 100
+framerate = 60
 
 [output]
 method = raw
