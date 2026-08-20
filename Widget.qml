@@ -98,6 +98,7 @@ BarWidget {
     }
 
     property bool popupOpen: false
+    property bool showMiniCava: false
     function close() { root.popupOpen = false }
 
     readonly property color fg: root.bar ? root.bar.foreground : Color.foreground
@@ -383,7 +384,7 @@ BarWidget {
         onTriggered: root.downloadState = 0
     }
 
-    implicitWidth: icon.implicitWidth + (root.labelText !== "" ? Style.space(6) + root.labelMaxWidth : 0) + Style.space(12)
+    implicitWidth: icon.implicitWidth + (root.labelText !== "" ? Style.space(6) + root.labelMaxWidth : 0) + (root.showMiniCava && root.player && root.player.isPlaying ? Style.space(4) + Style.space(48) : 0) + Style.space(12)
     implicitHeight: barSize
 
     Text {
@@ -410,6 +411,53 @@ BarWidget {
         font.pixelSize: Style.font.bodySmall
         elide: Text.ElideRight
         verticalAlignment: Text.AlignVCenter
+    }
+
+    Item {
+        id: miniCavaContainer
+        visible: root.showMiniCava && root.player && root.player.isPlaying
+        x: label.visible ? Math.round(label.x + label.width + Style.space(4)) : Math.round(icon.x + icon.width + Style.space(4))
+        y: Math.round((parent.height - height) / 2)
+        width: Style.space(48)
+        height: Math.round(barSize * 0.5)
+
+        property var levels: Array(12).fill(0)
+
+        readonly property string miniCavaConfigFile: {
+            var url = String(Qt.resolvedUrl("cava_config_mini"))
+            if (url.indexOf("file://") === 0) url = url.substring(7)
+            try { return decodeURIComponent(url) } catch (e) { return url }
+        }
+
+        Process {
+            id: miniCavaProc
+            running: root.showMiniCava && root.player && root.player.isPlaying
+            command: ["cava", "-p", miniCavaContainer.miniCavaConfigFile]
+            stdout: SplitParser {
+                onRead: line => {
+                    const vals = line.split(";").map(v => {
+                        var n = Number(v);
+                        return isNaN(n) ? 0 : n;
+                    });
+                    while (vals.length < 12) vals.push(0);
+                    miniCavaContainer.levels = vals.slice(0, 12);
+                }
+            }
+        }
+
+        Row {
+            anchors.fill: parent
+            spacing: 1
+            Repeater {
+                model: 12
+                Rectangle {
+                    width: (miniCavaContainer.width - 12) / 12
+                    height: Math.max(1, (miniCavaContainer.levels[index] || 0) / 100 * miniCavaContainer.height)
+                    anchors.bottom: parent.bottom
+                    color: root.bar ? root.bar.barForeground : Color.foreground
+                }
+            }
+        }
     }
 
 
@@ -618,6 +666,27 @@ BarWidget {
                         opacity: root.shuffleEnabled ? 1.0 : 0.4
                         onClicked: root.toggleShuffle()
                     }
+                }
+            }
+
+            Row {
+                width: parent.width
+                spacing: Style.space(6)
+
+                Button {
+                    iconText: "\uf130"
+                    foreground: root.fg
+                    selected: root.showMiniCava
+                    tooltipText: root.showMiniCava ? "Hide bar visualizer" : "Show bar visualizer"
+                    onClicked: root.showMiniCava = !root.showMiniCava
+                }
+
+                Text {
+                    text: "Bar visualizer"
+                    color: Qt.darker(root.fg, 1.3)
+                    font.family: root.fontFam
+                    font.pixelSize: Style.font.caption
+                    anchors.verticalCenter: parent.verticalCenter
                 }
             }
 
