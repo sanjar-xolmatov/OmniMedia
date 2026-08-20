@@ -224,6 +224,7 @@ BarWidget {
 
     function confirmDownload() {
         root.confirmOpen = false
+        closeDelay.stop()
         root.downloadCancelled = false
         root.downloadState = 4
         root.downloadProgress = 0
@@ -514,6 +515,7 @@ BarWidget {
         contentHeight: popup.fittedContentHeight(column.implicitHeight)
 
         onContainsMouseChanged: {
+            if (confirmPopup.open) return
             if (popup.containsMouse) closeDelay.stop()
             else if (root.popupOpen && !trigger.hovered) closeDelay.restart()
         }
