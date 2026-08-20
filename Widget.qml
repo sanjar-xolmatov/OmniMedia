@@ -209,6 +209,7 @@ BarWidget {
         root.pendingUrl = ""
         root.inputUrl = ""
         root.downloadState = 1
+        closeDelay.stop()
     }
 
     function startActualDownload() {
@@ -265,14 +266,7 @@ BarWidget {
     HyprlandFocusGrab {
         id: inputGrab
         active: root.downloadState === 1
-        windows: root.QsWindow ? [root.QsWindow.window] : []
-        onCleared: {
-            if (root.downloadState === 1) {
-                root.downloadState = 0
-                root.inputUrl = ""
-                root.downloadError = ""
-            }
-        }
+        windows: root.QsWindow && root.QsWindow.window ? [root.QsWindow.window] : []
     }
 
     Timer {
@@ -433,7 +427,7 @@ BarWidget {
         hoverEnabled: true
         cursorShape: Qt.PointingHandCursor
         onEntered: { closeDelay.stop(); root.wallpaperVersion++; root.popupOpen = true; root.refreshCliampState() }
-        onExited: closeDelay.restart()
+        onExited: { if (root.downloadState !== 1) closeDelay.restart() }
         onClicked: {
             if (!root.player) return
             root.preferredPlayerKey = root.playerKey(root.player)
@@ -452,6 +446,7 @@ BarWidget {
         contentHeight: popup.fittedContentHeight(column.implicitHeight)
 
         onContainsMouseChanged: {
+            if (root.downloadState === 1) return
             if (popup.containsMouse) closeDelay.stop()
             else if (root.popupOpen && !trigger.hovered) closeDelay.restart()
         }
