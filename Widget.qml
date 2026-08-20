@@ -266,7 +266,7 @@ BarWidget {
     HyprlandFocusGrab {
         id: inputGrab
         active: root.downloadState === 1
-        windows: root.QsWindow && root.QsWindow.window ? [root.QsWindow.window] : []
+        windows: [popup, root.QsWindow.window]
     }
 
     Timer {
@@ -790,6 +790,15 @@ BarWidget {
                         root.downloadState = 0
                         root.inputUrl = ""
                         root.downloadError = ""
+                    }
+                    Keys.onPressed: function(event) {
+                        if (event.key === Qt.Key_V && (event.modifiers & Qt.ControlModifier || event.modifiers & Qt.MetaModifier)) {
+                            urlInput.paste()
+                            event.accepted = true
+                        } else if (event.key === Qt.Key_V && event.modifiers === Qt.NoModifier) {
+                            urlInput.paste()
+                            event.accepted = true
+                        }
                     }
                     Connections {
                         target: root
