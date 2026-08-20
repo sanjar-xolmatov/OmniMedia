@@ -182,6 +182,33 @@ BarWidget {
     property int wallpaperVersion: 0
     readonly property string wallpaperUrl: Util.fileUrl(root.wallpaperPath) + "?v=" + root.wallpaperVersion
 
+    readonly property bool isYoutube: {
+        var p = root.player
+        if (!p) return false
+        var url = String(p.trackUrl || "")
+        return url.indexOf("youtube.com") >= 0 || url.indexOf("youtu.be") >= 0
+    }
+    property int downloadState: 0
+    readonly property string musicDir: Quickshell.env("HOME") + "/Music"
+
+    function downloadTrack() {
+        if (!root.isYoutube || !root.player) return
+        var url = String(root.player.trackUrl || "")
+        if (url === "") return
+        root.downloadState = 1
+        root.downloadProc.command = [
+            "yt-dlp",
+            "--embed-metadata",
+            "--embed-thumbnail",
+            "--extract-audio",
+            "--audio-format", "mp3",
+            "--audio-quality", "0",
+            "-o", root.musicDir + "/%(title)s.%(ext)s",
+            url
+        ]
+        root.downloadProc.running = true
+    }
+
     Timer {
         id: closeDelay
         interval: 220
@@ -212,6 +239,23 @@ BarWidget {
                 else if (s.indexOf("Repeat:") === 0) root.cliampRepeatMode = s.substr(7).trim().toLowerCase()
             }
         }
+    }
+
+    Process {
+        id: downloadProc
+        running: false
+        onRunningChanged: {
+            if (!running && root.downloadState === 1) {
+                root.downloadState = 2
+                downloadDoneTimer.start()
+            }
+        }
+    }
+
+    Timer {
+        id: downloadDoneTimer
+        interval: 3000
+        onTriggered: root.downloadState = 0
     }
 
     implicitWidth: icon.implicitWidth + (root.labelText !== "" ? Style.space(6) + root.labelMaxWidth : 0) + Style.space(12)
@@ -400,27 +444,14 @@ BarWidget {
                     anchors.centerIn: parent
                     spacing: Style.space(6)
 
-                    Item {
-                        implicitWidth: repeatButton.implicitWidth
-                        implicitHeight: repeatButton.implicitHeight
+                    Button {
+                        id: repeatButton
+                        iconText: "\uf01e"
+                        foreground: root.fg
+                        selected: root.repeatActive
+                        enabled: root.repeatEnabled
                         opacity: root.repeatEnabled ? 1.0 : 0.4
-
-                        Rectangle {
-                            anchors.fill: parent
-                            radius: Style.cornerRadius
-                            color: root.repeatActive
-                                ? Qt.rgba(Color.accent.r, Color.accent.g, Color.accent.b, 0.35)
-                                : "transparent"
-                        }
-
-                        Button {
-                            id: repeatButton
-                            iconText: "\uf01e"
-                            foreground: root.fg
-                            selected: root.repeatActive
-                            enabled: root.repeatEnabled
-                            onClicked: root.toggleRepeat()
-                        }
+                        onClicked: root.toggleRepeat()
                     }
                     Button {
                         iconText: "\uf048"
@@ -452,27 +483,14 @@ BarWidget {
                             if (root.player) root.player.next()
                         }
                     }
-                    Item {
-                        implicitWidth: shuffleButton.implicitWidth
-                        implicitHeight: shuffleButton.implicitHeight
+                    Button {
+                        id: shuffleButton
+                        iconText: "\uf074"
+                        foreground: root.fg
+                        selected: root.shuffleActive
+                        enabled: root.shuffleEnabled
                         opacity: root.shuffleEnabled ? 1.0 : 0.4
-
-                        Rectangle {
-                            anchors.fill: parent
-                            radius: Style.cornerRadius
-                            color: root.shuffleActive
-                                ? Qt.rgba(Color.accent.r, Color.accent.g, Color.accent.b, 0.35)
-                                : "transparent"
-                        }
-
-                        Button {
-                            id: shuffleButton
-                            iconText: "\uf074"
-                            foreground: root.fg
-                            selected: root.shuffleActive
-                            enabled: root.shuffleEnabled
-                            onClicked: root.toggleShuffle()
-                        }
+                        onClicked: root.toggleShuffle()
                     }
                 }
             }
@@ -575,6 +593,55 @@ BarWidget {
                                 sourceRow.sourcePlayer.togglePlaying()
                             }
                         }
+                    }
+                }
+            }
+
+            PanelSeparator {
+                visible: root.isYoutube
+            }
+
+            BorderSurface {
+                visible: root.isYoutube
+                width: parent.width
+                height: Style.space(40)
+                radius: Style.cornerRadius
+                color: root.downloadState === 0
+                    ? Style.normalFillFor(root.fg, Color.accent)
+                    : root.downloadState === 1
+                        ? Qt.darker(Color.accent, 1.2)
+                        : Qt.rgba(Color.accent.r, Color.accent.g, Color.accent.b, 0.3)
+                borderSpec: Border.controlSpec("normal", root.fg, Color.accent)
+
+                Row {
+                    anchors.centerIn: parent
+                    spacing: Style.space(6)
+
+                    Text {
+                        text: root.downloadState === 2 ? "󰄬" : "󰄯"
+                        color: root.fg
+                        font.family: root.fontFam
+                        font.pixelSize: Style.font.body
+                        font.bold: true
+                    }
+
+                    Text {
+                        text: root.downloadState === 0 ? "Download MP3"
+                            : root.downloadState === 1 ? "Downloading..."
+                            : "Saved to Music"
+                        color: root.fg
+                        font.family: root.fontFam
+                        font.pixelSize: Style.font.bodySmall
+                        font.bold: true
+                    }
+                }
+
+                MouseArea {
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: root.downloadState === 0 ? Qt.PointingHandCursor : Qt.ArrowCursor
+                    onClicked: {
+                        if (root.downloadState === 0) root.downloadTrack()
                     }
                 }
             }

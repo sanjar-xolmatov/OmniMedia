@@ -61,7 +61,7 @@ live audio visualizer.
 1. Remove the widget from the bar and disable the plugin:
 
    ```sh
-   omarchy plugin disable sanjar.omnimedia
+   omarchy plugin disable omnimedia
    ```
 
 2. Delete the plugin folder:
@@ -111,6 +111,6 @@ the same license as the rest of the project.
 
 ## License
 
-See [LICENSE](LICENSE). In short: you may use and modify this plugin for free,
-but you may not make changed versions public and may not use it for commercial
-purposes.
+See [LICENSE](LICENSE). In short: you may use, modify, and redistribute this
+plugin freely, as long as you include the copyright notice and permission notice
+from the original LICENSE in any copies or substantial portions of the software.
