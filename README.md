@@ -23,11 +23,17 @@ live audio visualizer.
 - Audio visualizer (cava) while the popup is open
 - Switches between players (e.g. cliamp + YouTube Music) automatically,
   with a clickable source list when more than one is active
+- **Download YouTube tracks** — save the currently playing YouTube track as a
+  tagged MP3 file with embedded metadata and album artwork
 
 ## Requirements
 
 - Omarchy (the shell plugin API)
-- `cava` — needed for the visualizer. Install it if you want the visualizer:
+- `cava` — needed for the visualizer. Install it if you want the visualizer.
+- `yt-dlp` — required for the download feature. Install it if you want to
+  download tracks.
+- `ffmpeg` — required by yt-dlp for audio conversion. Install it alongside
+  yt-dlp.
 
 ## Install
 
@@ -86,6 +92,22 @@ live audio visualizer.
   best: repeat loops the current track on its own, and shuffle stays greyed out
   since it can't be controlled.
 - With multiple players open, click a source in the list to switch to it.
+
+### Downloading tracks
+
+When a YouTube track is playing, a **Download MP3** button appears below the
+visualizer. Click it to save the track to `~/Music` as a tagged MP3 file.
+
+- The download includes embedded title, artist, album, and cover artwork.
+- A progress percentage is shown while the download is active.
+- Click the button again to **cancel** an in-progress download.
+- If a download fails, the button shows the error and can be clicked to
+  **retry**.
+- If `yt-dlp` or `ffmpeg` is not installed, the button shows a message
+  indicating which dependency is missing.
+
+Downloaded files are named `Artist - Title.mp3` (with unsafe filesystem
+characters removed). Existing files are not overwritten.
 
 ## Future plans
 

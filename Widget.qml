@@ -188,25 +188,74 @@ BarWidget {
         var url = String(p.trackUrl || "")
         return url.indexOf("youtube.com") >= 0 || url.indexOf("youtu.be") >= 0
     }
-    property int downloadState: 0
+    property int downloadState: 0 // 0=idle, 1=downloading, 2=success, 3=failed, 4=no-ytdlp, 5=no-ffmpeg, 6=non-youtube
+    property real downloadProgress: 0
+    property string downloadError: ""
     readonly property string musicDir: Quickshell.env("HOME") + "/Music"
 
     function downloadTrack() {
-        if (!root.isYoutube || !root.player) return
+        if (!root.isYoutube || !root.player) { root.downloadState = 6; return }
         var url = String(root.player.trackUrl || "")
-        if (url === "") return
-        root.downloadState = 1
-        root.downloadProc.command = [
-            "yt-dlp",
-            "--embed-metadata",
-            "--embed-thumbnail",
-            "--extract-audio",
-            "--audio-format", "mp3",
-            "--audio-quality", "0",
-            "-o", root.musicDir + "/%(title)s.%(ext)s",
-            url
-        ]
-        root.downloadProc.running = true
+        if (url === "") { root.downloadState = 6; return }
+
+        // Check yt-dlp dependency
+        root.depCheckProc.command = ["which", "yt-dlp"]
+        root.depCheckProc.onExited = function(exitCode) {
+            if (exitCode !== 0) {
+                root.downloadState = 4
+                root.downloadError = "Install yt-dlp to download tracks"
+                return
+            }
+            // Check ffmpeg dependency
+            root.depCheckProc.command = ["which", "ffmpeg"]
+            root.depCheckProc.onExited = function(exitCode) {
+                if (exitCode !== 0) {
+                    root.downloadState = 5
+                    root.downloadError = "Install ffmpeg for audio conversion"
+                    return
+                }
+                // All dependencies OK — start download
+                root.downloadState = 1
+                root.downloadProgress = 0
+                root.downloadError = ""
+                root.downloadProc.command = [
+                    "yt-dlp",
+                    "--embed-metadata",
+                    "--embed-thumbnail",
+                    "--extract-audio",
+                    "--audio-format", "mp3",
+                    "--audio-quality", "0",
+                    "--no-overwrites",
+                    "--no-playlist",
+                    "-o", root.musicDir + "/%(artist)s - %(title)s.%(ext)s",
+                    url
+                ]
+                root.downloadProc.running = true
+            }
+            root.depCheckProc.running = true
+        }
+        root.depCheckProc.running = true
+    }
+
+    function cancelDownload() {
+        if (root.downloadState !== 1) return
+        root.downloadProc.kill()
+        root.downloadState = 0
+        root.downloadProgress = 0
+        root.downloadError = ""
+    }
+
+    function downloadButtonLabel() {
+        switch (root.downloadState) {
+        case 0: return "Download MP3"
+        case 1: return "Downloading\u2026 " + Math.round(root.downloadProgress) + "%"
+        case 2: return "Downloaded"
+        case 3: return "Failed \u2014 retry?"
+        case 4: return "yt-dlp not found"
+        case 5: return "ffmpeg not found"
+        case 6: return "Not a YouTube track"
+        default: return "Download MP3"
+        }
     }
 
     Timer {
@@ -242,12 +291,51 @@ BarWidget {
     }
 
     Process {
+        id: depCheckProc
+        running: false
+    }
+
+    Process {
         id: downloadProc
         running: false
         onRunningChanged: {
             if (!running && root.downloadState === 1) {
-                root.downloadState = 2
-                downloadDoneTimer.start()
+                if (exitCode === 0) {
+                    root.downloadState = 2
+                    root.downloadProgress = 100
+                    downloadDoneTimer.start()
+                } else if (exitCode !== -1) {
+                    root.downloadState = 3
+                    root.downloadError = root.downloadError || "Download failed (exit " + exitCode + ")"
+                }
+            }
+        }
+        onExited: function(exitCode) {
+            if (exitCode !== 0 && root.downloadState === 1 && exitCode !== -1) {
+                root.downloadState = 3
+                root.downloadError = root.downloadError || "Download failed (exit " + exitCode + ")"
+            }
+        }
+        stdout: SplitParser {
+            onRead: line => {
+                var s = String(line).trim()
+                if (s.indexOf("[download]") === 0 && s.indexOf("%") > 0) {
+                    var pctStr = s.substring(10, s.indexOf("%")).trim()
+                    var pct = Number(pctStr)
+                    if (!isNaN(pct) && pct >= 0 && pct <= 100) {
+                        root.downloadProgress = pct
+                    }
+                }
+            }
+        }
+        stderr: SplitParser {
+            onRead: line => {
+                var s = String(line).trim()
+                if (s.indexOf("ERROR:") === 0) {
+                    root.downloadError = s.length > 7 ? s.substring(7).trim() : "Unknown error"
+                } else if (s.indexOf("ffmpeg") >= 0 && s.indexOf("not found") >= 0) {
+                    root.downloadError = "ffmpeg not found — install ffmpeg for audio conversion"
+                }
             }
         }
     }
@@ -601,48 +689,27 @@ BarWidget {
                 visible: root.isYoutube
             }
 
-            BorderSurface {
+            Button {
                 visible: root.isYoutube
                 width: parent.width
-                height: Style.space(40)
-                radius: Style.cornerRadius
-                color: root.downloadState === 0
-                    ? Style.normalFillFor(root.fg, Color.accent)
-                    : root.downloadState === 1
-                        ? Qt.darker(Color.accent, 1.2)
-                        : Qt.rgba(Color.accent.r, Color.accent.g, Color.accent.b, 0.3)
-                borderSpec: Border.controlSpec("normal", root.fg, Color.accent)
-
-                Row {
-                    anchors.centerIn: parent
-                    spacing: Style.space(6)
-
-                    Text {
-                        text: root.downloadState === 2 ? "󰄬" : "󰄯"
-                        color: root.fg
-                        font.family: root.fontFam
-                        font.pixelSize: Style.font.body
-                        font.bold: true
-                    }
-
-                    Text {
-                        text: root.downloadState === 0 ? "Download MP3"
-                            : root.downloadState === 1 ? "Downloading..."
-                            : "Saved to Music"
-                        color: root.fg
-                        font.family: root.fontFam
-                        font.pixelSize: Style.font.bodySmall
-                        font.bold: true
-                    }
-                }
-
-                MouseArea {
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: root.downloadState === 0 ? Qt.PointingHandCursor : Qt.ArrowCursor
-                    onClicked: {
-                        if (root.downloadState === 0) root.downloadTrack()
-                    }
+                iconText: root.downloadState === 1 ? "\uf110"
+                    : root.downloadState === 2 ? "\uf00c"
+                    : root.downloadState === 3 ? "\uf00d"
+                    : root.downloadState === 4 || root.downloadState === 5 ? "\uf06a"
+                    : root.downloadState === 6 ? "\uf071"
+                    : "\uf019"
+                iconSpinning: root.downloadState === 1
+                text: root.downloadButtonLabel()
+                foreground: root.fg
+                fontSize: Style.font.bodySmall
+                tooltipText: root.downloadState === 1 ? "Click to cancel"
+                    : root.downloadState === 3 ? "Click to retry"
+                    : ""
+                onClicked: {
+                    if (root.downloadState === 0) root.downloadTrack()
+                    else if (root.downloadState === 1) root.cancelDownload()
+                    else if (root.downloadState === 3 || root.downloadState === 4
+                             || root.downloadState === 5) root.downloadTrack()
                 }
             }
         }

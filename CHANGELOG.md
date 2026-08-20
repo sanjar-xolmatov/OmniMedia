@@ -13,6 +13,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Additional cava visualizer designs/themes, switchable from the popup.
 - More polish on the progress bar and playback control fallbacks.
 
+## [0.2.0]
+
+### Added
+
+- YouTube track download feature: download the currently playing track as a
+  tagged MP3 with embedded metadata (title, artist, album, cover artwork).
+- Dependency detection for `yt-dlp` and `ffmpeg` with clear error messages.
+- Download progress reporting (percentage displayed in the button).
+- Cancel support for in-progress downloads.
+- Retry support for failed downloads.
+- Filename sanitization to avoid filesystem-unsafe characters.
+- `--no-overwrites` and `--no-playlist` flags for safe, single-track downloads.
+
 ## [0.1.0] - 2026-08-15
 
 First release.
@@ -30,5 +43,6 @@ First release.
 - `cliamp` repeat/shuffle support via the `cliamp` CLI.
 - README, LICENSE, and AGENTS.md.
 
-[Unreleased]: https://github.com/sanjar-xolmatov/NowPlaying/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/sanjar-xolmatov/NowPlaying/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/sanjar-xolmatov/NowPlaying/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/sanjar-xolmatov/NowPlaying/releases/tag/v0.1.0
