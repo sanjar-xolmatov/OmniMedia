@@ -4,7 +4,7 @@ import qs.Commons
 
 Item {
     id: viz
-    property int barCount: 30
+    property int barCount: 20
     property color barColor: Color.accent
     property bool running: true
     property var levels: Array(barCount).fill(0)
