@@ -447,11 +447,11 @@ BarWidget {
 
         Row {
             anchors.fill: parent
-            spacing: 0
+            spacing: 2
             Repeater {
                 model: 12
                 Rectangle {
-                    width: miniCavaContainer.width / 12
+                    width: (miniCavaContainer.width - 22) / 12
                     height: Math.max(1, (miniCavaContainer.levels[index] || 0) / 100 * miniCavaContainer.height)
                     anchors.bottom: parent.bottom
                     color: root.bar ? root.bar.barForeground : Color.foreground
