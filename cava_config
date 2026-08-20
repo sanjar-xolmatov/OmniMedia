@@ -1,5 +1,7 @@
 [general]
 bars = 20
+autosens = 0
+sensitivity = 100
 
 [output]
 method = raw
