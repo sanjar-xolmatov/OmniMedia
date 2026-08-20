@@ -182,36 +182,61 @@ BarWidget {
     property int wallpaperVersion: 0
     readonly property string wallpaperUrl: Util.fileUrl(root.wallpaperPath) + "?v=" + root.wallpaperVersion
 
-    readonly property bool isYoutube: {
-        var p = root.player
-        if (!p) return false
-        var url = String(p.trackUrl || "")
-        return url.indexOf("youtube.com") >= 0 || url.indexOf("youtu.be") >= 0
-    }
-    property int downloadState: 0 // 0=idle, 1=downloading, 2=success, 3=failed, 4=no-ytdlp, 5=no-ffmpeg, 6=non-youtube
+    property int downloadState: 0 // 0=idle, 1=clipboard, 2=metadata, 3=confirm, 4=downloading, 5=success, 6=failed, 7=no-ytdlp, 8=no-ffmpeg, 9=not-youtube, 10=clipboard-empty, 11=fetch-failed
     property real downloadProgress: 0
     property string downloadError: ""
     property bool downloadCancelled: false
     property string depCheckTarget: ""
+    property string pendingUrl: ""
+    property string pendingTitle: ""
+    property string pendingArtist: ""
+    property string pendingThumbnail: ""
+    property real pendingDuration: 0
+    property bool confirmOpen: false
     readonly property string musicDir: Quickshell.env("HOME") + "/Music"
 
-    function downloadTrack() {
-        if (!root.isYoutube || !root.player) { root.downloadState = 6; return }
-        var url = String(root.player.trackUrl || "")
-        if (url === "") { root.downloadState = 6; return }
+    function isYouTubeUrl(url) {
+        return url.indexOf("youtube.com") >= 0 || url.indexOf("youtu.be") >= 0
+    }
 
+    function formatDuration(secs) {
+        var s = Math.round(secs)
+        var h = Math.floor(s / 3600)
+        var m = Math.floor((s % 3600) / 60)
+        var sec = s % 60
+        if (h > 0) return h + ":" + (m < 10 ? "0" : "") + m + ":" + (sec < 10 ? "0" : "") + sec
+        return m + ":" + (sec < 10 ? "0" : "") + sec
+    }
+
+    function downloadTrack() {
         root.downloadCancelled = false
-        root.downloadState = 1
-        root.downloadProgress = 0
         root.downloadError = ""
+        root.downloadProgress = 0
+        root.pendingUrl = ""
+        root.pendingTitle = ""
+        root.pendingArtist = ""
+        root.pendingThumbnail = ""
+        root.pendingDuration = 0
+        root.downloadState = 1
+        root.clipboardProc.command = ["wl-paste", "--no-newline"]
+        root.clipboardProc.running = true
+    }
+
+    function confirmDownload() {
+        root.confirmOpen = false
+        root.downloadCancelled = false
+        root.downloadState = 4
+        root.downloadProgress = 0
         root.depCheckTarget = "yt-dlp"
         root.depCheckProc.command = ["which", "yt-dlp"]
         root.depCheckProc.running = true
     }
 
     function cancelDownload() {
-        if (root.downloadState !== 1) return
         root.downloadCancelled = true
+        root.confirmOpen = false
+        if (root.clipboardProc.running) root.clipboardProc.kill()
+        if (root.metadataProc.running) root.metadataProc.kill()
         if (root.depCheckProc.running) root.depCheckProc.kill()
         if (root.downloadProc.running) root.downloadProc.kill()
         root.downloadState = 0
@@ -221,14 +246,19 @@ BarWidget {
 
     function downloadButtonLabel() {
         switch (root.downloadState) {
-        case 0: return "Download MP3"
-        case 1: return "Downloading\u2026 " + Math.round(root.downloadProgress) + "%"
-        case 2: return "Downloaded"
-        case 3: return "Failed \u2014 retry?"
-        case 4: return "yt-dlp not found"
-        case 5: return "ffmpeg not found"
-        case 6: return "Not a YouTube track"
-        default: return "Download MP3"
+        case 0: return "Download YouTube"
+        case 1: return "Reading clipboard\u2026"
+        case 2: return "Fetching info\u2026"
+        case 3: return "Confirm download"
+        case 4: return "Downloading\u2026 " + Math.round(root.downloadProgress) + "%"
+        case 5: return "Downloaded"
+        case 6: return "Failed \u2014 retry?"
+        case 7: return "yt-dlp not found"
+        case 8: return "ffmpeg not found"
+        case 9: return "Not a YouTube link"
+        case 10: return "Copy a YouTube link first"
+        case 11: return "Could not fetch info"
+        default: return "Download YouTube"
         }
     }
 
@@ -265,13 +295,82 @@ BarWidget {
     }
 
     Process {
+        id: clipboardProc
+        running: false
+        stdout: SplitParser {
+            onRead: line => {
+                if (root.downloadState !== 1) return
+                var url = String(line).trim()
+                if (url === "") {
+                    root.downloadState = 10
+                    root.downloadError = "Clipboard is empty — copy a YouTube link first"
+                    return
+                }
+                if (!root.isYouTubeUrl(url)) {
+                    root.downloadState = 9
+                    root.downloadError = "Not a YouTube link — copy a YouTube URL first"
+                    return
+                }
+                root.pendingUrl = url
+                root.downloadState = 2
+                root.metadataProc.stdout.lineIndex = 0
+                root.metadataProc.command = [
+                    "yt-dlp", "--no-download", "--print", "%(title)s",
+                    "--print", "%(uploader|artist)s",
+                    "--print", "%(duration)s",
+                    "--print", "%(thumbnail)s",
+                    "--no-playlist", url
+                ]
+                root.metadataProc.running = true
+            }
+        }
+        onExited: function(exitCode) {
+            if (root.downloadState === 1 && !root.downloadCancelled) {
+                if (exitCode !== 0 && root.pendingUrl === "") {
+                    root.downloadState = 10
+                    root.downloadError = "Could not read clipboard"
+                }
+            }
+        }
+    }
+
+    Process {
+        id: metadataProc
+        running: false
+        stdout: SplitParser {
+            property int lineIndex: 0
+            onRead: line => {
+                if (root.downloadState !== 2) return
+                var s = String(line).trim()
+                if (lineIndex === 0) root.pendingTitle = s
+                else if (lineIndex === 1) root.pendingArtist = s
+                else if (lineIndex === 2) root.pendingDuration = Number(s) || 0
+                else if (lineIndex === 3) root.pendingThumbnail = s
+                lineIndex++
+            }
+        }
+        onExited: function(exitCode) {
+            if (root.downloadState === 2 && !root.downloadCancelled) {
+                if (exitCode !== 0) {
+                    root.downloadState = 11
+                    root.downloadError = "Could not fetch video info"
+                    return
+                }
+                if (root.pendingTitle === "") root.pendingTitle = "Unknown title"
+                root.downloadState = 3
+                root.confirmOpen = true
+            }
+        }
+    }
+
+    Process {
         id: depCheckProc
         running: false
         onExited: function(exitCode) {
             if (root.downloadCancelled) return
             if (root.depCheckTarget === "yt-dlp") {
                 if (exitCode !== 0) {
-                    root.downloadState = 4
+                    root.downloadState = 7
                     root.downloadError = "Install yt-dlp to download tracks"
                     return
                 }
@@ -280,7 +379,7 @@ BarWidget {
                 root.depCheckProc.running = true
             } else if (root.depCheckTarget === "ffmpeg") {
                 if (exitCode !== 0) {
-                    root.downloadState = 5
+                    root.downloadState = 8
                     root.downloadError = "Install ffmpeg for audio conversion"
                     return
                 }
@@ -293,8 +392,8 @@ BarWidget {
                     "--audio-quality", "0",
                     "--no-overwrites",
                     "--no-playlist",
-                    "-o", root.musicDir + "/%(artist)s - %(title)s.%(ext)s",
-                    String(root.player.trackUrl || "")
+                    "-o", root.musicDir + "/%(artist|uploader)s - %(title)s.%(ext)s",
+                    root.pendingUrl
                 ]
                 root.downloadProc.running = true
             }
@@ -305,20 +404,20 @@ BarWidget {
         id: downloadProc
         running: false
         onRunningChanged: {
-            if (!running && root.downloadState === 1 && !root.downloadCancelled) {
+            if (!running && root.downloadState === 4 && !root.downloadCancelled) {
                 if (exitCode === 0) {
-                    root.downloadState = 2
+                    root.downloadState = 5
                     root.downloadProgress = 100
                     downloadDoneTimer.start()
                 } else if (exitCode !== -1) {
-                    root.downloadState = 3
+                    root.downloadState = 6
                     root.downloadError = root.downloadError || "Download failed (exit " + exitCode + ")"
                 }
             }
         }
         onExited: function(exitCode) {
-            if (exitCode !== 0 && root.downloadState === 1 && !root.downloadCancelled && exitCode !== -1) {
-                root.downloadState = 3
+            if (exitCode !== 0 && root.downloadState === 4 && !root.downloadCancelled && exitCode !== -1) {
+                root.downloadState = 6
                 root.downloadError = root.downloadError || "Download failed (exit " + exitCode + ")"
             }
         }
@@ -692,30 +791,165 @@ BarWidget {
             }
 
             PanelSeparator {
-                visible: root.isYoutube
             }
 
             Button {
-                visible: root.isYoutube
+                id: downloadBtn
                 width: parent.width
-                iconText: root.downloadState === 1 ? "\uf110"
-                    : root.downloadState === 2 ? "\uf00c"
-                    : root.downloadState === 3 ? "\uf00d"
-                    : root.downloadState === 4 || root.downloadState === 5 ? "\uf06a"
-                    : root.downloadState === 6 ? "\uf071"
+                iconText: root.downloadState === 4 ? "\uf110"
+                    : root.downloadState === 5 ? "\uf00c"
+                    : root.downloadState === 6 ? "\uf00d"
+                    : root.downloadState === 7 || root.downloadState === 8 ? "\uf06a"
+                    : root.downloadState === 9 || root.downloadState === 10 ? "\uf071"
+                    : root.downloadState === 11 ? "\uf06a"
+                    : root.downloadState === 1 || root.downloadState === 2 ? "\uf110"
                     : "\uf019"
-                iconSpinning: root.downloadState === 1
+                iconSpinning: root.downloadState === 1 || root.downloadState === 2 || root.downloadState === 4
                 text: root.downloadButtonLabel()
                 foreground: root.fg
                 fontSize: Style.font.bodySmall
-                tooltipText: root.downloadState === 1 ? "Click to cancel"
-                    : root.downloadState === 3 ? "Click to retry"
+                tooltipText: root.downloadState === 4 ? "Click to cancel"
+                    : root.downloadState === 6 ? "Click to retry"
+                    : root.downloadState === 0 ? "Copy a YouTube link, then click here"
                     : ""
                 onClicked: {
-                    if (root.downloadState === 0) root.downloadTrack()
-                    else if (root.downloadState === 1) root.cancelDownload()
-                    else if (root.downloadState === 3 || root.downloadState === 4
-                             || root.downloadState === 5) root.downloadTrack()
+                    if (root.downloadState === 0 || root.downloadState === 9
+                        || root.downloadState === 10 || root.downloadState === 11
+                        || root.downloadState === 5) root.downloadTrack()
+                    else if (root.downloadState === 4) root.cancelDownload()
+                    else if (root.downloadState === 6 || root.downloadState === 7
+                             || root.downloadState === 8) root.downloadTrack()
+                }
+            }
+
+            PanelSeparator {
+                visible: root.downloadError !== "" && root.downloadState !== 3
+            }
+
+            Text {
+                visible: root.downloadError !== "" && root.downloadState !== 3
+                width: parent.width
+                text: root.downloadError
+                color: Qt.darker(root.fg, 1.5)
+                font.family: root.fontFam
+                font.pixelSize: Style.font.caption
+                wrapMode: Text.Wrap
+                horizontalAlignment: Text.AlignHCenter
+            }
+        }
+    }
+
+    PopupCard {
+        id: confirmPopup
+        anchorItem: root
+        bar: root.bar
+        owner: root
+        open: root.confirmOpen
+        triggerMode: "hover"
+        contentWidth: confirmPopup.fittedContentWidth(Style.space(280))
+        contentHeight: confirmPopup.fittedContentHeight(confirmColumn.implicitHeight)
+
+        onContainsMouseChanged: {
+            if (confirmPopup.containsMouse) closeDelay.stop()
+            else if (root.confirmOpen && !trigger.hovered) closeDelay.restart()
+        }
+
+        Column {
+            id: confirmColumn
+            anchors.fill: parent
+            spacing: Style.space(10)
+
+            Text {
+                text: "Download from YouTube"
+                color: root.fg
+                font.family: root.fontFam
+                font.pixelSize: Style.font.subtitle
+                font.bold: true
+                width: parent.width
+                horizontalAlignment: Text.AlignHCenter
+            }
+
+            BorderSurface {
+                width: Style.space(48)
+                height: Style.space(48)
+                radius: Style.cornerRadius
+                color: Style.normalFillFor(root.fg, Color.accent)
+                borderSpec: Border.controlSpec("normal", root.fg, Color.accent)
+                anchors.horizontalCenter: parent.horizontalCenter
+
+                Image {
+                    anchors.fill: parent
+                    anchors.margins: Style.space(2)
+                    fillMode: Image.PreserveAspectCrop
+                    asynchronous: true
+                    source: root.pendingThumbnail !== "" ? root.pendingThumbnail : ""
+                    visible: source !== ""
+                }
+
+                Text {
+                    anchors.centerIn: parent
+                    visible: root.pendingThumbnail === ""
+                    text: "\uf019"
+                    color: root.fg
+                    font.family: root.fontFam
+                    font.pixelSize: Style.font.displayLarge
+                }
+            }
+
+            Column {
+                width: parent.width
+                spacing: Style.space(2)
+
+                Text {
+                    text: root.pendingTitle || "Unknown title"
+                    color: root.fg
+                    font.family: root.fontFam
+                    font.pixelSize: Style.font.body
+                    font.bold: true
+                    elide: Text.ElideRight
+                    width: parent.width
+                    horizontalAlignment: Text.AlignHCenter
+                }
+
+                Text {
+                    text: root.pendingArtist || "Unknown artist"
+                    color: Qt.darker(root.fg, 1.3)
+                    font.family: root.fontFam
+                    font.pixelSize: Style.font.bodySmall
+                    elide: Text.ElideRight
+                    width: parent.width
+                    horizontalAlignment: Text.AlignHCenter
+                    visible: text !== ""
+                }
+
+                Text {
+                    text: root.pendingDuration > 0 ? root.formatDuration(root.pendingDuration) : ""
+                    color: Qt.darker(root.fg, 1.5)
+                    font.family: root.fontFam
+                    font.pixelSize: Style.font.caption
+                    width: parent.width
+                    horizontalAlignment: Text.AlignHCenter
+                    visible: text !== ""
+                }
+            }
+
+            Row {
+                anchors.horizontalCenter: parent.horizontalCenter
+                spacing: Style.space(8)
+
+                Button {
+                    text: "Cancel"
+                    foreground: root.fg
+                    fontSize: Style.font.bodySmall
+                    onClicked: root.cancelDownload()
+                }
+
+                Button {
+                    text: "Download"
+                    foreground: root.fg
+                    fontSize: Style.font.bodySmall
+                    selected: true
+                    onClicked: root.confirmDownload()
                 }
             }
         }

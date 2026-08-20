@@ -34,6 +34,8 @@ live audio visualizer.
   download tracks.
 - `ffmpeg` — required by yt-dlp for audio conversion. Install it alongside
   yt-dlp.
+- `wl-paste` (from `wl-clipboard`) — needed to read YouTube links from the
+  clipboard.
 
 ## Install
 
@@ -95,14 +97,18 @@ live audio visualizer.
 
 ### Downloading tracks
 
-When a YouTube track is playing, a **Download MP3** button appears below the
-visualizer. Click it to save the track to `~/Music` as a tagged MP3 file.
+A **Download YouTube** button is always visible below the visualizer. To
+download a track:
+
+1. Copy a YouTube link to your clipboard.
+2. Click the **Download YouTube** button.
+3. A confirmation popup shows the video title, artist, thumbnail, and duration.
+4. Click **Download** to save the track to `~/Music` as a tagged MP3 file.
 
 - The download includes embedded title, artist, album, and cover artwork.
 - A progress percentage is shown while the download is active.
-- Click the button again to **cancel** an in-progress download.
-- If a download fails, the button shows the error and can be clicked to
-  **retry**.
+- Click **Cancel** during the download to abort.
+- If the clipboard doesn't contain a YouTube link, the button shows a message.
 - If `yt-dlp` or `ffmpeg` is not installed, the button shows a message
   indicating which dependency is missing.
 

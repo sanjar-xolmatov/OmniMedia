@@ -17,13 +17,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- YouTube track download feature: download the currently playing track as a
-  tagged MP3 with embedded metadata (title, artist, album, cover artwork).
+- YouTube track download via clipboard: copy a YouTube link, click Download,
+  confirm in popup, save as tagged MP3 with embedded metadata and artwork.
+- Confirmation popup showing video title, artist, thumbnail, and duration
+  before download.
+- Download button always visible (no longer gated on playing a YouTube track).
+- Clipboard reading via `wl-paste` for YouTube URL detection.
+- Metadata fetching via `yt-dlp --no-download` for preview info.
 - Dependency detection for `yt-dlp` and `ffmpeg` with clear error messages.
 - Download progress reporting (percentage displayed in the button).
-- Cancel support for in-progress downloads.
+- Cancel support for in-progress downloads and metadata fetches.
 - Retry support for failed downloads.
-- Filename sanitization to avoid filesystem-unsafe characters.
 - `--no-overwrites` and `--no-playlist` flags for safe, single-track downloads.
 
 ## [0.1.0] - 2026-08-15
@@ -43,6 +47,7 @@ First release.
 - `cliamp` repeat/shuffle support via the `cliamp` CLI.
 - README, LICENSE, and AGENTS.md.
 
-[Unreleased]: https://github.com/sanjar-xolmatov/NowPlaying/compare/v0.2.0...HEAD
-[0.2.0]: https://github.com/sanjar-xolmatov/NowPlaying/compare/v0.1.0...v0.2.0
+[Unreleased]: https://github.com/sanjar-xolmatov/OmniMedia/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/sanjar-xolmatov/OmniMedia/compare/v0.2.0...v0.3.0
+[0.2.0]: https://github.com/sanjar-xolmatov/OmniMedia/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/sanjar-xolmatov/NowPlaying/releases/tag/v0.1.0
