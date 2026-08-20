@@ -384,7 +384,7 @@ BarWidget {
         onTriggered: root.downloadState = 0
     }
 
-    implicitWidth: icon.implicitWidth + (root.labelText !== "" ? Style.space(6) + root.labelMaxWidth : 0) + (root.showMiniCava && root.player && root.player.isPlaying ? Style.space(4) + Style.space(48) : 0) + Style.space(12)
+    implicitWidth: icon.implicitWidth + (root.labelText !== "" ? Style.space(6) + root.labelMaxWidth : 0) + (root.showMiniCava && root.player && root.player.isPlaying ? Style.space(4) + Style.space(72) : 0) + Style.space(12)
     implicitHeight: barSize
 
     Text {
@@ -418,7 +418,7 @@ BarWidget {
         visible: root.showMiniCava && root.player && root.player.isPlaying
         x: label.visible ? Math.round(label.x + label.width + Style.space(4)) : Math.round(icon.x + icon.width + Style.space(4))
         y: Math.round((parent.height - height) / 2)
-        width: Style.space(48)
+        width: Style.space(72)
         height: Math.round(barSize * 0.5)
 
         property var levels: Array(12).fill(0)
@@ -447,11 +447,11 @@ BarWidget {
 
         Row {
             anchors.fill: parent
-            spacing: 1
+            spacing: 0
             Repeater {
                 model: 12
                 Rectangle {
-                    width: (miniCavaContainer.width - 12) / 12
+                    width: miniCavaContainer.width / 12
                     height: Math.max(1, (miniCavaContainer.levels[index] || 0) / 100 * miniCavaContainer.height)
                     anchors.bottom: parent.bottom
                     color: root.bar ? root.bar.barForeground : Color.foreground
