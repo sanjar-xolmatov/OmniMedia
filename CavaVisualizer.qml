@@ -40,7 +40,7 @@ Item {
             model: viz.barCount
             Rectangle {
                 width: (viz.width - viz.barCount * 2) / viz.barCount
-                height: (viz.levels[index] || 0) / 100 * viz.height
+                height: Math.max(2, (viz.levels[index] || 0) / 100 * viz.height)
                 anchors.bottom: parent.bottom
                 color: viz.barColor
             }

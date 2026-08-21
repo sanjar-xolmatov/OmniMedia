@@ -97,8 +97,18 @@ BarWidget {
     }
 
     property bool popupOpen: false
-    property bool showMiniCava: false
+    property bool showMiniCava: root.setting("showMiniCava", false)
     function close() { root.popupOpen = false }
+
+    function toggleMiniCava() {
+        root.showMiniCava = !root.showMiniCava
+        var entry = { id: root.moduleName }
+        for (var key in root.settings) if (key !== "id") entry[key] = root.settings[key]
+        entry["showMiniCava"] = root.showMiniCava
+        root.settings = entry
+        if (root.bar && root.bar.shell && typeof root.bar.shell.updateEntryInline === "function")
+            root.bar.shell.updateEntryInline(root.moduleName, entry)
+    }
 
     readonly property color fg: root.bar ? root.bar.foreground : Color.foreground
     readonly property string fontFam: root.bar ? root.bar.fontFamily : Style.font.family
@@ -139,20 +149,18 @@ BarWidget {
     property bool widgetRepeat: false
     readonly property bool shuffleActive: root.isCliamp
         ? root.cliampShuffle
-        : root.player ? !!root.player.shuffle : false
+        : root.player && root.player.shuffleSupported
+            ? !!root.player.shuffle
+            : root.cliampShuffle
     readonly property bool repeatActive: root.isCliamp
         ? root.cliampRepeatMode !== "off"
         : root.player && root.player.loopSupported
             ? root.player.loopState !== MprisLoopState.None
             : root.widgetRepeat
-    readonly property bool shuffleEnabled: root.player && (root.player.shuffleSupported || root.isCliamp)
-    readonly property bool repeatEnabled: root.player && (
-        root.player.loopSupported || root.isCliamp
-        || (root.player.positionSupported && root.player.length > 0))
-
     function runCliamp(args) {
-        root.cliampProc.command = ["cliamp"].concat(args)
-        root.cliampProc.running = true
+        if (cliampProc.running) cliampProc.running = false
+        cliampProc.command = ["cliamp"].concat(args)
+        cliampProc.running = true
     }
 
     function refreshCliampState() {
@@ -164,6 +172,7 @@ BarWidget {
         root.preferredPlayerKey = root.playerKey(root.player)
         if (root.isCliamp) root.runCliamp(["shuffle", "toggle"])
         else if (root.player.shuffleSupported) root.player.shuffle = !root.player.shuffle
+        else root.cliampShuffle = !root.cliampShuffle
     }
 
     function toggleRepeat() {
@@ -453,38 +462,37 @@ BarWidget {
                         iconText: "\uf01e"
                         foreground: root.fg
                         selected: root.repeatActive
-                        enabled: root.repeatEnabled
-                        opacity: root.repeatEnabled ? 1.0 : 0.4
+                        opacity: root.player ? 1.0 : 0.4
                         onClicked: root.toggleRepeat()
                     }
                     Button {
                         iconText: "\uf048"
                         foreground: root.fg
-                        enabled: root.player && root.player.canGoPrevious
-                        opacity: enabled ? 1.0 : 0.4
+                        opacity: root.player ? 1.0 : 0.4
                         onClicked: {
-                            if (root.player) root.preferredPlayerKey = root.playerKey(root.player)
-                            if (root.player) root.player.previous()
+                            if (!root.player) return
+                            root.preferredPlayerKey = root.playerKey(root.player)
+                            root.player.previous()
                         }
                     }
                     Button {
                         iconText: root.player && root.player.isPlaying ? "\uf04c" : "\uf04b"
                         foreground: root.fg
-                        enabled: root.player && root.player.canTogglePlaying
-                        opacity: enabled ? 1.0 : 0.4
+                        opacity: root.player ? 1.0 : 0.4
                         onClicked: {
-                            if (root.player) root.preferredPlayerKey = root.playerKey(root.player)
-                            if (root.player) root.player.togglePlaying()
+                            if (!root.player) return
+                            root.preferredPlayerKey = root.playerKey(root.player)
+                            root.player.togglePlaying()
                         }
                     }
                     Button {
                         iconText: "\uf051"
                         foreground: root.fg
-                        enabled: root.player && root.player.canGoNext
-                        opacity: enabled ? 1.0 : 0.4
+                        opacity: root.player ? 1.0 : 0.4
                         onClicked: {
-                            if (root.player) root.preferredPlayerKey = root.playerKey(root.player)
-                            if (root.player) root.player.next()
+                            if (!root.player) return
+                            root.preferredPlayerKey = root.playerKey(root.player)
+                            root.player.next()
                         }
                     }
                     Button {
@@ -492,30 +500,9 @@ BarWidget {
                         iconText: "\uf074"
                         foreground: root.fg
                         selected: root.shuffleActive
-                        enabled: root.shuffleEnabled
-                        opacity: root.shuffleEnabled ? 1.0 : 0.4
+                        opacity: root.player ? 1.0 : 0.4
                         onClicked: root.toggleShuffle()
                     }
-                }
-            }
-
-            Row {
-                width: parent.width
-                spacing: Style.space(6)
-
-                Button {
-                    foreground: root.fg
-                    selected: root.showMiniCava
-                    tooltipText: root.showMiniCava ? "Hide bar visualizer" : "Show bar visualizer"
-                    onClicked: root.showMiniCava = !root.showMiniCava
-                }
-
-                Text {
-                    text: "Bar visualizer"
-                    color: Qt.darker(root.fg, 1.3)
-                    font.family: root.fontFam
-                    font.pixelSize: Style.font.caption
-                    anchors.verticalCenter: parent.verticalCenter
                 }
             }
 
@@ -619,6 +606,17 @@ BarWidget {
                         }
                     }
                 }
+            }
+
+            PanelSeparator {
+            }
+
+            Button {
+                width: parent.width
+                text: "Toggle bar visualizer"
+                foreground: root.fg
+                selected: root.showMiniCava
+                onClicked: root.toggleMiniCava()
             }
         }
     }
