@@ -1,7 +1,6 @@
 import QtQuick
 import Quickshell
 import Quickshell.Io
-import Quickshell.Hyprland
 import Quickshell.Services.Mpris
 import qs.Ui
 import qs.Commons
@@ -184,90 +183,10 @@ BarWidget {
     property int wallpaperVersion: 0
     readonly property string wallpaperUrl: Util.fileUrl(root.wallpaperPath) + "?v=" + root.wallpaperVersion
 
-    property int downloadState: 0 // 0=idle, 1=input, 2=downloading, 3=success, 4=failed, 5=no-ytdlp, 6=no-ffmpeg, 7=not-youtube
-    property real downloadProgress: 0
-    property string downloadError: ""
-    property bool downloadCancelled: false
-    property string depCheckTarget: ""
-    property string pendingUrl: ""
-    property string inputUrl: ""
-    readonly property string musicDir: Quickshell.env("HOME") + "/Music"
-
-    function isYouTubeUrl(url) {
-        return url.indexOf("youtube.com") >= 0 || url.indexOf("youtu.be") >= 0
-    }
-
-    function downloadTrack() {
-        if (root.downloadState === 1) {
-            root.downloadState = 0
-            root.inputUrl = ""
-            root.downloadError = ""
-            return
-        }
-        root.downloadCancelled = false
-        root.downloadError = ""
-        root.downloadProgress = 0
-        root.pendingUrl = ""
-        root.inputUrl = ""
-        root.downloadState = 1
-        closeDelay.stop()
-    }
-
-    function startActualDownload() {
-        root.downloadCancelled = false
-        root.downloadState = 2
-        root.downloadProgress = 0
-        root.depCheckTarget = "yt-dlp"
-        root.depCheckProc.command = ["which", "yt-dlp"]
-        root.depCheckProc.running = true
-    }
-
-    function cancelDownload() {
-        root.downloadCancelled = true
-        if (root.depCheckProc.running) root.depCheckProc.kill()
-        if (root.downloadProc.running) root.downloadProc.kill()
-        root.downloadState = 0
-        root.downloadProgress = 0
-        root.downloadError = ""
-        root.inputUrl = ""
-    }
-
-    function submitUrl() {
-        var url = root.inputUrl.trim()
-        if (url === "") return
-        if (!root.isYouTubeUrl(url)) {
-            root.downloadState = 7
-            root.downloadError = "Not a YouTube link"
-            return
-        }
-        root.pendingUrl = url
-        root.startActualDownload()
-    }
-
-    function downloadButtonLabel() {
-        switch (root.downloadState) {
-        case 0: return "Download YouTube"
-        case 1: return "Enter URL"
-        case 2: return "Downloading\u2026 " + Math.round(root.downloadProgress) + "%"
-        case 3: return "Downloaded"
-        case 4: return "Failed \u2014 retry?"
-        case 5: return "yt-dlp not found"
-        case 6: return "ffmpeg not found"
-        case 7: return "Not a YouTube link"
-        default: return "Download YouTube"
-        }
-    }
-
     Timer {
         id: closeDelay
         interval: 220
         onTriggered: root.popupOpen = false
-    }
-
-    HyprlandFocusGrab {
-        id: inputGrab
-        active: root.downloadState === 1
-        windows: [popup, root.QsWindow.window]
     }
 
     Timer {
@@ -294,94 +213,6 @@ BarWidget {
                 else if (s.indexOf("Repeat:") === 0) root.cliampRepeatMode = s.substr(7).trim().toLowerCase()
             }
         }
-    }
-
-    Process {
-        id: depCheckProc
-        running: false
-        onExited: function(exitCode) {
-            if (root.downloadCancelled) return
-            if (root.depCheckTarget === "yt-dlp") {
-                if (exitCode !== 0) {
-                    root.downloadState = 5
-                    root.downloadError = "Install yt-dlp to download tracks"
-                    return
-                }
-                root.depCheckTarget = "ffmpeg"
-                root.depCheckProc.command = ["which", "ffmpeg"]
-                root.depCheckProc.running = true
-            } else if (root.depCheckTarget === "ffmpeg") {
-                if (exitCode !== 0) {
-                    root.downloadState = 6
-                    root.downloadError = "Install ffmpeg for audio conversion"
-                    return
-                }
-                root.downloadProc.command = [
-                    "yt-dlp",
-                    "--embed-metadata",
-                    "--embed-thumbnail",
-                    "--extract-audio",
-                    "--audio-format", "mp3",
-                    "--audio-quality", "0",
-                    "--no-overwrites",
-                    "--no-playlist",
-                    "-o", root.musicDir + "/%(artist|uploader)s - %(title)s.%(ext)s",
-                    root.pendingUrl
-                ]
-                root.downloadProc.running = true
-            }
-        }
-    }
-
-    Process {
-        id: downloadProc
-        running: false
-        onRunningChanged: {
-            if (!running && root.downloadState === 2 && !root.downloadCancelled) {
-                if (exitCode === 0) {
-                    root.downloadState = 3
-                    root.downloadProgress = 100
-                    downloadDoneTimer.start()
-                } else if (exitCode !== -1) {
-                    root.downloadState = 4
-                    root.downloadError = root.downloadError || "Download failed (exit " + exitCode + ")"
-                }
-            }
-        }
-        onExited: function(exitCode) {
-            if (exitCode !== 0 && root.downloadState === 2 && !root.downloadCancelled && exitCode !== -1) {
-                root.downloadState = 4
-                root.downloadError = root.downloadError || "Download failed (exit " + exitCode + ")"
-            }
-        }
-        stdout: SplitParser {
-            onRead: line => {
-                var s = String(line).trim()
-                if (s.indexOf("[download]") === 0 && s.indexOf("%") > 0) {
-                    var pctStr = s.substring(10, s.indexOf("%")).trim()
-                    var pct = Number(pctStr)
-                    if (!isNaN(pct) && pct >= 0 && pct <= 100) {
-                        root.downloadProgress = pct
-                    }
-                }
-            }
-        }
-        stderr: SplitParser {
-            onRead: line => {
-                var s = String(line).trim()
-                if (s.indexOf("ERROR:") === 0) {
-                    root.downloadError = s.length > 7 ? s.substring(7).trim() : "Unknown error"
-                } else if (s.indexOf("ffmpeg") >= 0 && s.indexOf("not found") >= 0) {
-                    root.downloadError = "ffmpeg not found \u2014 install ffmpeg for audio conversion"
-                }
-            }
-        }
-    }
-
-    Timer {
-        id: downloadDoneTimer
-        interval: 3000
-        onTriggered: root.downloadState = 0
     }
 
     implicitWidth: icon.implicitWidth + (root.labelText !== "" ? Style.space(6) + root.labelMaxWidth : 0) + (root.showMiniCava && root.player && root.player.isPlaying ? Style.space(4) + Style.space(72) : 0) + Style.space(12)
@@ -475,7 +306,7 @@ BarWidget {
         hoverEnabled: true
         cursorShape: Qt.PointingHandCursor
         onEntered: { closeDelay.stop(); root.wallpaperVersion++; root.popupOpen = true; root.refreshCliampState() }
-        onExited: { if (root.downloadState !== 1) closeDelay.restart() }
+        onExited: { closeDelay.restart() }
         onClicked: {
             if (!root.player) return
             root.preferredPlayerKey = root.playerKey(root.player)
@@ -494,7 +325,6 @@ BarWidget {
         contentHeight: popup.fittedContentHeight(column.implicitHeight)
 
         onContainsMouseChanged: {
-            if (root.downloadState === 1) return
             if (popup.containsMouse) closeDelay.stop()
             else if (root.popupOpen && !trigger.hovered) closeDelay.restart()
         }
@@ -795,116 +625,34 @@ BarWidget {
             PanelSeparator {
             }
 
-            Button {
-                id: downloadBtn
+            CavaVisualizer {
                 width: parent.width
-                iconText: root.downloadState === 2 ? "\uf110"
-                    : root.downloadState === 3 ? "\uf00c"
-                    : root.downloadState === 4 ? "\uf00d"
-                    : root.downloadState === 5 || root.downloadState === 6 ? "\uf06a"
-                    : root.downloadState === 7 ? "\uf071"
-                    : root.downloadState === 1 ? "\uf00d"
-                    : "\uf019"
-                iconSpinning: root.downloadState === 2
-                text: root.downloadButtonLabel()
-                foreground: root.fg
-                fontSize: Style.font.bodySmall
-                tooltipText: root.downloadState === 2 ? "Click to cancel"
-                    : root.downloadState === 4 ? "Click to retry"
-                    : ""
-                onClicked: {
-                    if (root.downloadState === 0 || root.downloadState === 5
-                        || root.downloadState === 3 || root.downloadState === 4
-                        || root.downloadState === 7 || root.downloadState === 6)
-                        root.downloadTrack()
-                    else if (root.downloadState === 2) root.cancelDownload()
-                    else if (root.downloadState === 1) root.downloadTrack()
-                }
-            }
-
-            Rectangle {
-                width: parent.width
-                height: root.downloadState === 1 ? urlInput.implicitHeight + Style.space(16) : 0
-                color: Color?.alpha(root.fg, 0.06) ?? Qt.rgba(root.fg.r, root.fg.g, root.fg.b, 0.06)
-                radius: Style.radius(6)
-                clip: true
-                visible: root.downloadState === 1
-                Behavior on height { NumberAnimation { duration: 150 } }
-
-                TextInput {
-                    id: urlInput
-                    anchors.fill: parent
-                    anchors.margins: Style.space(8)
-                    color: root.fg
-                    font.family: root.fontFam
-                    font.pixelSize: Style.font.bodySmall
-                    verticalAlignment: TextInput.AlignVCenter
-                    clip: true
-                    selectByMouse: true
-                    selectionColor: Color.accent
-                    echoMode: TextInput.Normal
-                    visible: root.downloadState === 1
-                    focus: root.downloadState === 1
-                    activeFocusOnTab: false
-                    Text {
-                        anchors.verticalCenter: parent.verticalCenter
-                        text: "Paste YouTube URL..."
-                        color: Qt.darker(root.fg, 1.5)
-                        font.family: root.fontFam
-                        font.pixelSize: Style.font.bodySmall
-                        visible: !urlInput.text && !urlInput.activeFocus
-                    }
-                    onAccepted: root.submitUrl()
-                    Keys.onEscapePressed: {
-                        root.downloadState = 0
-                        root.inputUrl = ""
-                        root.downloadError = ""
-                    }
-                    Keys.onPressed: function(event) {
-                        if (event.key === Qt.Key_V && (event.modifiers & Qt.ControlModifier || event.modifiers & Qt.MetaModifier)) {
-                            urlInput.paste()
-                            event.accepted = true
-                        } else if (event.key === Qt.Key_V && event.modifiers === Qt.NoModifier) {
-                            urlInput.paste()
-                            event.accepted = true
-                        }
-                    }
-                    Connections {
-                        target: root
-                        function onDownloadStateChanged() {
-                            if (root.downloadState === 1) {
-                                urlInput.text = ""
-                                urlInput.forceActiveFocus()
-                            }
-                        }
-                    }
-                    Binding on text { value: root.inputUrl; when: false }
-                    onTextChanged: root.inputUrl = text
-                }
-            }
-
-            Button {
-                width: parent.width
-                text: "Go"
-                foreground: root.fg
-                fontSize: Style.font.bodySmall
-                visible: root.downloadState === 1
-                onClicked: root.submitUrl()
+                height: Style.space(60)
+                running: root.popupOpen
             }
 
             PanelSeparator {
-                visible: root.downloadError !== "" && root.downloadState !== 3
             }
 
-            Text {
-                visible: root.downloadError !== "" && root.downloadState !== 3
+            Row {
                 width: parent.width
-                text: root.downloadError
-                color: Qt.darker(root.fg, 1.5)
-                font.family: root.fontFam
-                font.pixelSize: Style.font.caption
-                wrapMode: Text.Wrap
-                horizontalAlignment: Text.AlignHCenter
+                spacing: Style.space(6)
+
+                Button {
+                    iconText: "\uf130"
+                    foreground: root.fg
+                    selected: root.showMiniCava
+                    tooltipText: root.showMiniCava ? "Hide bar visualizer" : "Show bar visualizer"
+                    onClicked: root.showMiniCava = !root.showMiniCava
+                }
+
+                Text {
+                    text: "Bar visualizer"
+                    color: Qt.darker(root.fg, 1.3)
+                    font.family: root.fontFam
+                    font.pixelSize: Style.font.caption
+                    anchors.verticalCenter: parent.verticalCenter
+                }
             }
         }
     }
