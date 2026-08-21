@@ -504,7 +504,6 @@ BarWidget {
                 spacing: Style.space(6)
 
                 Button {
-                    iconText: "\uf130"
                     foreground: root.fg
                     selected: root.showMiniCava
                     tooltipText: root.showMiniCava ? "Hide bar visualizer" : "Show bar visualizer"
@@ -619,39 +618,6 @@ BarWidget {
                             }
                         }
                     }
-                }
-            }
-
-            PanelSeparator {
-            }
-
-            CavaVisualizer {
-                width: parent.width
-                height: Style.space(60)
-                running: root.popupOpen
-            }
-
-            PanelSeparator {
-            }
-
-            Row {
-                width: parent.width
-                spacing: Style.space(6)
-
-                Button {
-                    iconText: "\uf130"
-                    foreground: root.fg
-                    selected: root.showMiniCava
-                    tooltipText: root.showMiniCava ? "Hide bar visualizer" : "Show bar visualizer"
-                    onClicked: root.showMiniCava = !root.showMiniCava
-                }
-
-                Text {
-                    text: "Bar visualizer"
-                    color: Qt.darker(root.fg, 1.3)
-                    font.family: root.fontFam
-                    font.pixelSize: Style.font.caption
-                    anchors.verticalCenter: parent.verticalCenter
                 }
             }
         }
