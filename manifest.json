@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
-  "id": "omnimedia",
+  "id": "sanjar.omnimedia",
   "name": "OmniMedia",
-  "version": "0.3.5",
+  "version": "1.0.0",
   "author": "Sanjar Xolmatov",
   "description": "Bar icon that opens a media popup with cava",
   "kinds": ["bar-widget"],
